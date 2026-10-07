@@ -1,0 +1,61 @@
+.PHONY: up down build logs api simulator worker reset demo test init-mongo push-dashboards help
+
+SHELL := /bin/bash
+
+help:
+	@echo "Available targets:"
+	@echo "  up            - Start all services with Docker Compose"
+	@echo "  down          - Stop all services"
+	@echo "  build         - Rebuild all images"
+	@echo "  logs          - Tail all service logs"
+	@echo "  api           - Restart API service"
+	@echo "  simulator     - Restart simulator service"
+	@echo "  worker        - Restart worker service"
+	@echo "  init-mongo    - Initialize MongoDB collections (Time Series + TTL)"
+	@echo "  demo          - Run demo incident (pump failure -> oxygen drop)"
+	@echo "  push-dashboards - Upload Datadog dashboard & monitor"
+	@echo "  test          - Run pytest"
+	@echo "  reset         - Wipe MongoDB data and re-init"
+
+up:
+	docker compose up -d
+	@echo "Waiting for services..."
+	@sleep 5
+	@echo "Services running. Check logs with 'make logs'"
+
+down:
+	docker compose down
+
+build:
+	docker compose build --no-cache
+
+logs:
+	docker compose logs -f --tail=100
+
+api:
+	docker compose restart api
+
+simulator:
+	docker compose restart simulator
+
+worker:
+	docker compose restart worker
+
+init-mongo:
+	docker compose exec -T api python -m app.init_db
+
+demo:
+	docker compose exec -T api python -m app.demo_incident
+
+push-dashboards:
+	docker compose exec -T api python -m app.datadog_push
+
+test:
+	docker compose exec -T api pytest -v tests/
+
+reset:
+	docker compose down -v
+	docker compose up -d mongodb
+	@sleep 5
+	docker compose exec -T api python -m app.init_db
+	docker compose up -d

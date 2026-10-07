@@ -1,0 +1,271 @@
+{
+  "title": "ShrimpWatch - Giám sát chất lượng nước Ao nuôi tôm thẻ chân trắng",
+  "description": "Dashboard tổng hợp cho 6 ao: nhiệt độ, DO, pH, độ kiềm, CO2, công suất quạt, sự cố. Tương ứng yêu cầu #3 (ít nhất 1 dashboard Datadog).",
+  "template_variables": [
+    {"name": "farm_id", "prefix": "farm_id", "default": "farm-001"},
+    {"name": "pond", "prefix": "pond", "default": "*", "available_values": ["*", "pond-01", "pond-02", "pond-03", "pond-04", "pond-05", "pond-06"]},
+    {"name": "device_type", "prefix": "device_type", "default": "*", "available_values": ["*", "water_node", "pump", "worker", "manual_tester"]}
+  ],
+  "layout_type": "ordered",
+  "reflow_type": "fixed",
+  "notify_list": [],
+  "is_read_only": false,
+  "widgets": [
+    {
+      "id": 1,
+      "definition": {
+        "type": "group",
+        "layout_type": "ordered",
+        "title": "Tổng quan hệ thống (6 ao)",
+        "show_title": true,
+        "widgets": [
+          {
+            "id": 101,
+            "definition": {
+              "type": "query_value",
+              "title": "Sự cố ĐANG MỞ",
+              "title_size": "16",
+              "title_align": "left",
+              "timeframe": "live_10m",
+              "autoscale": true,
+              "precision": 0,
+              "requests": [
+                {"formulas": [{"formula": "query1"}], "response_format": "scalar",
+                 "queries": [{"name": "query1", "data_source": "metrics", "query": "sum:shrimpwatch.incident.open{$farm_id,$pond}.as_count()"}]}
+              ]
+            },
+            "layout": {"x": 0, "y": 0, "width": 2, "height": 2}
+          },
+          {
+            "id": 102,
+            "definition": {
+              "type": "query_value",
+              "title": "Sự cố đã hồi phục",
+              "title_size": "16",
+              "title_align": "left",
+              "timeframe": "last_1d",
+              "autoscale": true,
+              "precision": 0,
+              "requests": [
+                {"formulas": [{"formula": "query1"}], "response_format": "scalar",
+                 "queries": [{"name": "query1", "data_source": "metrics", "query": "sum:shrimpwatch.incident.recovered{$farm_id,$pond}.as_count()"}]}
+              ]
+            },
+            "layout": {"x": 2, "y": 0, "width": 2, "height": 2}
+          },
+          {
+            "id": 103,
+            "definition": {
+              "type": "query_value",
+              "title": "Số lần quạt hỏng",
+              "title_size": "16",
+              "title_align": "left",
+              "timeframe": "last_1d",
+              "autoscale": true,
+              "precision": 0,
+              "requests": [
+                {"formulas": [{"formula": "query1"}], "response_format": "scalar",
+                 "queries": [{"name": "query1", "data_source": "metrics", "query": "sum:shrimpwatch.pump.failure{state:fail,$farm_id,$pond}.as_count()"}]}
+              ]
+            },
+            "layout": {"x": 4, "y": 0, "width": 2, "height": 2}
+          },
+          {
+            "id": 104,
+            "definition": {
+              "type": "query_value",
+              "title": "Records ingested / phút",
+              "title_size": "16",
+              "title_align": "left",
+              "timeframe": "last_5m",
+              "autoscale": true,
+              "precision": 0,
+              "requests": [
+                {"formulas": [{"formula": "query1"}], "response_format": "scalar",
+                 "queries": [{"name": "query1", "data_source": "metrics", "query": "sum:shrimpwatch.ingest.records{$farm_id}.as_rate()"}]}
+              ]
+            },
+            "layout": {"x": 6, "y": 0, "width": 2, "height": 2}
+          }
+        ]
+      },
+      "layout": {"x": 0, "y": 0, "width": 8, "height": 2}
+    },
+    {
+      "id": 2,
+      "definition": {
+        "type": "group",
+        "layout_type": "ordered",
+        "title": "Chỉ số theo dõi theo Ao (tag pond, device_type)",
+        "show_title": true,
+        "widgets": [
+          {
+            "id": 201,
+            "definition": {
+              "type": "timeseries",
+              "title": "Nhiệt độ (°C) - ngưỡng 26-32",
+              "title_size": "16",
+              "title_align": "left",
+              "timeframe": "last_4h",
+              "legend_layout": "auto",
+              "requests": [
+                {"formulas": [{"formula": "query1", "style": {"line_type": "solid"}}],
+                 "response_format": "timeseries",
+                 "queries": [{"name": "query1", "data_source": "metrics", "query": "avg:shrimpwatch.metric.temperature{$farm_id,$pond,$device_type} by {pond}.rollup(avg,30)"}],
+                 "style": {"palette": "warm"}
+                }
+              ],
+              "markers": [
+                {"value": "y = 26", "display_type": "error dashed", "label": "Ngưỡng dưới 26°C"},
+                {"value": "y = 32", "display_type": "error dashed", "label": "Ngưỡng trên 32°C"}
+              ]
+            },
+            "layout": {"x": 0, "y": 0, "width": 8, "height": 2}
+          },
+          {
+            "id": 202,
+            "definition": {
+              "type": "timeseries",
+              "title": "DO (mg/L) - Warning dưới 4, Critical dưới 3",
+              "title_size": "16",
+              "title_align": "left",
+              "timeframe": "last_4h",
+              "legend_layout": "auto",
+              "requests": [
+                {"formulas": [{"formula": "query1"}],
+                 "response_format": "timeseries",
+                 "queries": [{"name": "query1", "data_source": "metrics", "query": "avg:shrimpwatch.metric.do{$farm_id,$pond,$device_type} by {pond}.rollup(avg,30)"}],
+                 "style": {"palette": "cool"}
+                }
+              ],
+              "markers": [
+                {"value": "y = 3", "display_type": "error solid", "label": "DO critical 3 mg/L"},
+                {"value": "y = 4", "display_type": "warning dashed", "label": "DO warning 4 mg/L"}
+              ]
+            },
+            "layout": {"x": 0, "y": 2, "width": 8, "height": 2}
+          },
+          {
+            "id": 203,
+            "definition": {
+              "type": "timeseries",
+              "title": "pH - ngưỡng 7.5 - 8.5",
+              "title_size": "16",
+              "title_align": "left",
+              "timeframe": "last_4h",
+              "legend_layout": "auto",
+              "requests": [
+                {"formulas": [{"formula": "query1"}],
+                 "response_format": "timeseries",
+                 "queries": [{"name": "query1", "data_source": "metrics", "query": "avg:shrimpwatch.metric.ph{$farm_id,$pond,$device_type} by {pond}.rollup(avg,30)"}],
+                 "style": {"palette": "classroom"}
+                }
+              ],
+              "markers": [
+                {"value": "y = 7.5", "display_type": "warning dashed", "label": "pH dưới 7.5"},
+                {"value": "y = 8.5", "display_type": "warning dashed", "label": "pH trên 8.5"}
+              ]
+            },
+            "layout": {"x": 0, "y": 4, "width": 8, "height": 2}
+          }
+        ]
+      },
+      "layout": {"x": 0, "y": 2, "width": 8, "height": 8}
+    },
+    {
+      "id": 3,
+      "definition": {
+        "type": "group",
+        "layout_type": "ordered",
+        "title": "Độ kiềm (manual) & CO2 (derived) + Quạt nước",
+        "show_title": true,
+        "widgets": [
+          {
+            "id": 301,
+            "definition": {
+              "type": "timeseries",
+              "title": "Độ kiềm (mg CaCO3/L) - Warning dưới 120",
+              "title_size": "16",
+              "title_align": "left",
+              "timeframe": "last_24h",
+              "legend_layout": "auto",
+              "requests": [
+                {"formulas": [{"formula": "query1"}],
+                 "response_format": "timeseries",
+                 "queries": [{"name": "query1", "data_source": "metrics", "query": "avg:shrimpwatch.metric.alkalinity{source:manual,$farm_id,$pond} by {pond}"}],
+                 "style": {"palette": "cool"}
+                }
+              ],
+              "markers": [
+                {"value": "y = 120", "display_type": "warning dashed", "label": "Độ kiềm warning 120"}
+              ]
+            },
+            "layout": {"x": 0, "y": 0, "width": 4, "height": 2}
+          },
+          {
+            "id": 302,
+            "definition": {
+              "type": "timeseries",
+              "title": "CO2 (mg/L) - derived từ pH & độ kiềm, Warning trên 10",
+              "title_size": "16",
+              "title_align": "left",
+              "timeframe": "last_6h",
+              "legend_layout": "auto",
+              "requests": [
+                {"formulas": [{"formula": "query1"}],
+                 "response_format": "timeseries",
+                 "queries": [{"name": "query1", "data_source": "metrics", "query": "avg:shrimpwatch.metric.co2{source:derived,$farm_id,$pond} by {pond}.rollup(avg,60)"}],
+                 "style": {"palette": "orange"}
+                }
+              ],
+              "markers": [
+                {"value": "y = 10", "display_type": "warning dashed", "label": "CO2 warning 10 mg/L"}
+              ]
+            },
+            "layout": {"x": 4, "y": 0, "width": 4, "height": 2}
+          },
+          {
+            "id": 303,
+            "definition": {
+              "type": "timeseries",
+              "title": "Công suất quạt nước (W) - 0 = quạt hỏng",
+              "title_size": "16",
+              "title_align": "left",
+              "timeframe": "last_4h",
+              "legend_layout": "auto",
+              "requests": [
+                {"formulas": [{"formula": "query1"}],
+                 "response_format": "timeseries",
+                 "queries": [{"name": "query1", "data_source": "metrics", "query": "avg:shrimpwatch.metric.pump_power{device_type:pump,$farm_id,$pond} by {pond}.rollup(avg,30)"}],
+                 "style": {"palette": "vivid"}
+                }
+              ]
+            },
+            "layout": {"x": 0, "y": 2, "width": 4, "height": 2}
+          },
+          {
+            "id": 304,
+            "definition": {
+              "type": "hostmap",
+              "title": "Heatmap DO theo ao",
+              "title_size": "16",
+              "title_align": "left",
+              "requests": {
+                "fill": {
+                  "q": "avg:shrimpwatch.metric.do{$farm_id,$pond} by {pond}"
+                }
+              },
+              "node_type": "host",
+              "group": ["pond"],
+              "scope": ["farm_id:farm-001"],
+              "palette": "blue_to_red",
+              "metric_unit_display": "scaled"
+            },
+            "layout": {"x": 4, "y": 2, "width": 4, "height": 2}
+          }
+        ]
+      },
+      "layout": {"x": 0, "y": 10, "width": 8, "height": 6}
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+﻿services:
+  mongodb:
+    image: mongo:7
+    container_name: shrimpwatch-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin_pass
+      MONGO_INITDB_DATABASE: shrimpwatch
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    command: [ "--wiredTigerCacheSizeGB", "1.5" ]
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    container_name: shrimpwatch-api
+    restart: unless-stopped
+    command: >
+      ddtrace-run uvicorn app.api.main:app
+      --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DD_AGENT_HOST: datadog-agent
+      DD_TRACE_AGENT_PORT: 8126
+      DD_DOGSTATSD_PORT: 8125
+      MONGODB_URI: mongodb://shrimp_app:shrimp_pass@mongodb:27017/shrimpwatch?authSource=shrimpwatch
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app
+      - ./tests:/app/tests
+
+  simulator:
+    build: .
+    container_name: shrimpwatch-simulator
+    restart: unless-stopped
+    command: ddtrace-run python -m app.simulator
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      api:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      DD_AGENT_HOST: datadog-agent
+      DD_TRACE_AGENT_PORT: 8126
+      DD_DOGSTATSD_PORT: 8125
+      MONGODB_URI: mongodb://shrimp_app:shrimp_pass@mongodb:27017/shrimpwatch?authSource=shrimpwatch
+      API_URL: http://api:8000
+    volumes:
+      - ./app:/app/app
+
+  worker:
+    build: .
+    container_name: shrimpwatch-worker
+    restart: unless-stopped
+    command: ddtrace-run python -m app.worker
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      api:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      DD_AGENT_HOST: datadog-agent
+      DD_TRACE_AGENT_PORT: 8126
+      DD_DOGSTATSD_PORT: 8125
+      MONGODB_URI: mongodb://shrimp_app:shrimp_pass@mongodb:27017/shrimpwatch?authSource=shrimpwatch
+    volumes:
+      - ./app:/app/app
+
+  datadog-agent:
+    image: gcr.io/datadoghq/agent:7.59.0
+    container_name: shrimpwatch-datadog
+    pid: host
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DD_API_KEY: ${DD_API_KEY}
+      DD_SITE: ${DD_SITE:-datadoghq.com}
+      DD_ENV: ${DD_ENV:-development}
+      DD_LOGS_ENABLED: "true"
+      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: "true"
+      DD_APM_ENABLED: "true"
+      DD_APM_NON_LOCAL_TRAFFIC: "true"
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
+      DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED: "true"
+      DD_CONTAINER_LABELS_AS_TAGS: "com.docker.compose.service:service"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      - ./datadog/conf.d:/etc/datadog-agent/conf.d:ro
+    ports:
+      - "8125:8125/udp"
+      - "8126:8126"
+
+volumes:
+  mongodb_data:

@@ -1,0 +1,8 @@
+init_config:
+
+instances:
+  - url: "http://api:8000/healthz"
+    name: shrimpwatch-api
+    tags:
+      - farm_id:farm-001
+      - service:shrimpwatch-api

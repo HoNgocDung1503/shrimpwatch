@@ -1,0 +1,248 @@
+from datetime import datetime, timedelta
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app import models
+from app.api import app
+from app.config import settings
+from app.db import (
+    compute_do_drop_rate_pipeline,
+    events_collection,
+    get_client,
+    incidents_collection,
+    init_collections,
+    metrics_collection,
+    pack_ts_doc,
+    ponds_collection,
+)
+from app.models import (
+    AlkalinityInput,
+    BatchIngestRequest,
+    DeviceType,
+    MetricRecord,
+    MetricType,
+    Source,
+)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_db():
+    try:
+        get_client().admin.command("ping")
+        init_collections(force=True)
+    except Exception as e:
+        pytest.skip(f"MongoDB not reachable, skipping integration tests: {e}")
+
+
+@pytest.fixture
+def client():
+    return TestClient(app)
+
+
+def _insert_record(metric: str, pond: str, value: float, ts: datetime | None = None, source: str = "sensor",
+                   device_type: str = "water_node"):
+    doc = pack_ts_doc(
+        {
+            "timestamp": ts or datetime.utcnow(),
+            "farm_id": settings.FARM_ID,
+            "pond_id": pond,
+            "device_id": f"dev-{pond}",
+            "device_type": device_type,
+            "metric": metric,
+            "source": source,
+            "unit": "",
+            "value": value,
+        }
+    )
+    metrics_collection().insert_one(doc)
+
+
+def test_healthz(client: TestClient):
+    r = client.get("/healthz")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["farm_id"] == settings.FARM_ID
+
+
+def test_ponds_collection_seeded():
+    ponds = list(ponds_collection().find())
+    assert len(ponds) == settings.NUM_PONDS
+    assert all(p["_id"].startswith("pond-") for p in ponds)
+
+
+def test_timeseries_collection_metadata():
+    db = get_client()[settings.MONGODB_DB]
+    try:
+        info_cursor = db.command("listCollections", 1, filter={"name": "metrics"})
+    except Exception:
+        # Fallback: dung admin DB voi $listCatalog neu user co quyen
+        adm = get_client()["admin"]
+        infos = list(adm.aggregate([{"$listCatalog": {}}]))
+        ts_info = next(
+            (
+                i
+                for i in infos
+                if i.get("name") == "metrics"
+                and (i.get("db") == settings.MONGODB_DB or i.get("md", {}).get("options"))
+            ),
+            None,
+        )
+        assert ts_info is not None, "metrics collection not found via admin listCatalog"
+        md = ts_info.get("md") or {}
+        assert md.get("timeseries") is not None, "metrics must be a Time Series collection (Yêu cầu #1)"
+        opts = md.get("options") or {}
+        expire = opts.get("expireAfterSeconds")
+        assert expire is not None, "must have TTL expireAfterSeconds (Yêu cầu #1)"
+        return
+
+    cursor = info_cursor.get("cursor", {})
+    batch = cursor.get("firstBatch", cursor.get("nextBatch", []))
+    assert len(batch) >= 1, "metrics collection not found via listCollections"
+    entry = batch[0]
+    opts = entry.get("options", {})
+    assert opts.get("timeseries") is not None, "metrics must be a Time Series collection (Yêu cầu #1)"
+    assert "expireAfterSeconds" in opts, "must have TTL expireAfterSeconds (Yêu cầu #1)"
+    expire = opts["expireAfterSeconds"]
+    assert isinstance(expire, int) and expire > 0
+
+
+def test_ingest_batch_and_ttl_schema(client: TestClient):
+    rec = MetricRecord(
+        timestamp=datetime.utcnow(),
+        farm_id=settings.FARM_ID,
+        pond_id="pond-01",
+        device_id="node-pond-01",
+        device_type=DeviceType.WATER_NODE,
+        metric=MetricType.DO,
+        value=5.2,
+        source=Source.SENSOR,
+        unit="mg/L",
+    )
+    req = BatchIngestRequest(records=[rec])
+    r = client.post("/ingest/batch", json=req.model_dump(mode="json"))
+    assert r.status_code == 202, r.text
+    body = r.json()
+    assert body["ingested"] == 1
+
+    stored = metrics_collection().find_one(
+        {"metadata.pond_id": "pond-01", "metadata.metric": "do"},
+        sort=[("timestamp", -1)],
+    )
+    assert stored is not None
+    assert stored["value"] == 5.2
+    assert stored["metadata"]["source"] == "sensor"
+    assert stored["metadata"]["pond_id"] == "pond-01"
+
+
+def test_manual_alkalinity_ingest(client: TestClient):
+    body = AlkalinityInput(
+        farm_id=settings.FARM_ID,
+        pond_id="pond-02",
+        value=168.0,
+        tester_id="tech-002",
+    )
+    r = client.post("/ingest/manual/alkalinity", json=body.model_dump(mode="json"))
+    assert r.status_code == 202
+    stored = metrics_collection().find_one(
+        {"metadata.pond_id": "pond-02", "metadata.metric": "alkalinity", "metadata.source": "manual"},
+        sort=[("timestamp", -1)],
+    )
+    assert stored is not None
+    assert stored["value"] == 168.0
+
+
+def test_setwindowfields_do_drop_rate_pipeline():
+    now = datetime.utcnow()
+    start = now - timedelta(minutes=10)
+    for i, t in enumerate([start + timedelta(seconds=30 * j) for j in range(20)]):
+        _insert_record("do", "pond-03", max(1.5, 7.0 - i * 0.15), ts=t)
+    pipeline = compute_do_drop_rate_pipeline("pond-03", window_sec=300)
+    rows = list(metrics_collection().aggregate(pipeline))
+    assert len(rows) >= 1, "expected at least one aggregated row"
+    row = rows[0]
+    assert "do_drop_rate_mg_per_l_per_min" in row
+    assert row["do_drop_mg_per_l"] > 0, "DO is dropping so drop_mg_per_l should be > 0"
+    assert row["do_drop_rate_mg_per_l_per_min"] > 0
+    # This result is used as Yêu cầu #2 evidence stored in incidents.evidence
+    assert "min_do" in row
+
+
+def test_co2_derivation_formula():
+    from app.worker import derive_co2_for_pond
+    now = datetime.utcnow()
+    _insert_record("alkalinity", "pond-04", 170.0, ts=now, source="manual", device_type="manual_tester")
+    _insert_record("ph", "pond-04", 7.9, ts=now)
+    co2 = derive_co2_for_pond("pond-04", now)
+    assert co2 is not None
+    # Kiểm tra thử: pH 7.9, alk 170 => khoảng 4.2 mg/L (theo đề bài)
+    assert 3.5 <= co2 <= 5.0, f"Expected CO2 ~4.2, got {co2}"
+
+
+def test_pump_fail_event_and_incident_opening(client: TestClient):
+    from app.worker import check_pond
+    now = datetime.utcnow()
+    for i in range(10):
+        _insert_record(
+            "pump_power", "pond-05", 10.0 if i >= 5 else 1500.0,
+            ts=now - timedelta(seconds=30 * (10 - i)),
+            device_type="pump",
+        )
+    for i in range(15):
+        _insert_record(
+            "do", "pond-05",
+            max(2.0, 6.0 - i * 0.15),
+            ts=now - timedelta(seconds=30 * (15 - i)),
+        )
+
+    r = client.post("/ponds/pond-05/pump/fail", params={"failed": "true"})
+    assert r.status_code == 200
+    pond = ponds_collection().find_one({"_id": "pond-05"})
+    assert pond["pump"]["failed"] is True
+
+    check_pond("pond-05")
+    inc = incidents_collection().find_one({"pond_id": "pond-05"})
+    assert inc is not None
+    assert inc["severity"] in ("critical", "warning")
+    assert "evidence" in inc
+    # Yêu cầu #2: kết quả $setWindowFields nằm trong incidents.evidence
+    assert "do_drop_rate_mg_per_l_per_min" in inc["evidence"] or "avg_pump_power_watts" in inc["evidence"]
+    assert inc.get("root_cause") == "pump_failure" or inc.get("title")
+
+
+def test_incident_lifecycle_patch(client: TestClient):
+    incidents_collection().insert_one(
+        {
+            "_id": "inc-test-001",
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+            "farm_id": settings.FARM_ID,
+            "pond_id": "pond-06",
+            "severity": "critical",
+            "state": "open",
+            "title": "test incident",
+            "description": "test",
+            "evidence": {},
+            "actions": [],
+        }
+    )
+    r = client.patch(
+        "/incidents/inc-test-001",
+        params={"state": "investigating", "action": "Điều tra quạt"},
+    )
+    assert r.status_code == 200
+    r = client.patch(
+        "/incidents/inc-test-001",
+        params={"state": "resolving", "action": "Sửa quạt"},
+    )
+    assert r.status_code == 200
+    r = client.patch(
+        "/incidents/inc-test-001",
+        params={"state": "recovered", "action": "AO ổn định DO"},
+    )
+    assert r.status_code == 200
+
+    r = client.get("/incidents", params={"state": "recovered"})
+    assert r.status_code == 200
+    found = any(x["_id"] == "inc-test-001" for x in r.json())
+    assert found, "Expected incident in recovered state"

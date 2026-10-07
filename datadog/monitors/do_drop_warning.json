@@ -1,0 +1,15 @@
+{
+  "name": "[ShrimpWatch] WARNING: DO giảm nhanh bất thường (anomaly drop rate)",
+  "type": "metric alert",
+  "query": "change(shrimpwatch.metric.do, last_5m):last_5m - last_10m < -0.3",
+  "message": "## ⚠️ Cảnh báo: DO giảm nhanh bất thường\n\nDO ao {{pod.name}} trong 5 phút gần đây giảm nhiều hơn ngưỡng dự báo (seasonality 24h). Kiểm tra:\n- Công suất quạt qua dashboard (biểu đồ pump_power)\n- Log worker (tag `device_type:worker`, `pond:{{pod.name}}`) để xem pipeline `$setWindowFields` đã phát hiện tốc độ giảm DO (evidence.do_drop_rate_mg_per_l_per_min) chưa.\n- Xem incident vừa tạo trên `/incidents?state=open`",
+  "tags": ["shrimpwatch", "pond:do_anomaly", "sev:warning"],
+  "thresholds": {
+    "warning": -0.3,
+    "critical": -0.8
+  },
+  "notify_no_data": false,
+  "renotify_interval": 30,
+  "evaluation_delay": 60,
+  "include_tags": true
+}

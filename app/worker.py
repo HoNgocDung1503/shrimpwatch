@@ -1,0 +1,268 @@
+from __future__ import annotations
+
+import math
+import time
+import uuid
+from datetime import datetime, timedelta
+
+from app.config import settings
+from app.db import (
+    compute_do_drop_rate_pipeline,
+    events_collection,
+    incidents_collection,
+    metrics_collection,
+    pack_ts_doc,
+    ponds_collection,
+)
+from app.logging_setup import get_logger
+from app.metrics import gauge, increment, set_span_tags, init_metrics
+from app.models import (
+    DeviceType,
+    Incident,
+    IncidentEvidence,
+    IncidentState,
+    Severity,
+    Source,
+)
+
+logger = get_logger("worker")
+
+
+def derive_co2_for_pond(pond_id: str, timestamp: datetime) -> float | None:
+    last_alk_doc = metrics_collection().find_one(
+        {
+            "metadata.pond_id": pond_id,
+            "metadata.metric": "alkalinity",
+            "metadata.source": {"$in": ["manual"]},
+            "timestamp": {"$gte": timestamp - timedelta(hours=24)},
+        },
+        sort=[("timestamp", -1)],
+    )
+    last_ph_doc = metrics_collection().find_one(
+        {
+            "metadata.pond_id": pond_id,
+            "metadata.metric": "ph",
+            "metadata.source": {"$in": ["sensor"]},
+            "timestamp": {"$gte": timestamp - timedelta(minutes=30)},
+        },
+        sort=[("timestamp", -1)],
+    )
+    if not last_alk_doc or not last_ph_doc:
+        return None
+    alk = last_alk_doc["value"]
+    ph = last_ph_doc["value"]
+    co2 = 44000.0 * (alk / 50000.0) * (10 ** (6.35 - ph))
+    return round(co2, 3)
+
+
+def write_co2_record(pond_id: str, timestamp: datetime, co2: float):
+    doc = pack_ts_doc(
+        {
+            "timestamp": timestamp,
+            "farm_id": settings.FARM_ID,
+            "pond_id": pond_id,
+            "device_id": f"worker-co2-{pond_id}",
+            "device_type": DeviceType.WORKER.value,
+            "metric": "co2",
+            "source": Source.DERIVED.value,
+            "unit": "mg/L",
+            "value": co2,
+        }
+    )
+    metrics_collection().insert_one(doc)
+    gauge(
+        "metric.co2",
+        co2,
+        tags={"pond": pond_id, "device_type": DeviceType.WORKER.value, "source": Source.DERIVED.value},
+    )
+    increment("co2.derived", tags={"pond": pond_id})
+
+
+def evaluate_pond_do_drop(pond_id: str, window_sec: int = 300):
+    pipeline = compute_do_drop_rate_pipeline(pond_id, window_sec=window_sec)
+    result = list(metrics_collection().aggregate(pipeline))
+    if not result:
+        return None
+    row = result[0]
+    logger.info("DO window computed", extra={"pond": pond_id, "row": row})
+    return row
+
+
+def avg_pump_power_last_n(pond_id: str, minutes: int = 5) -> float | None:
+    docs = list(
+        metrics_collection()
+        .find(
+            {
+                "metadata.pond_id": pond_id,
+                "metadata.metric": "pump_power",
+                "timestamp": {"$gte": datetime.utcnow() - timedelta(minutes=minutes)},
+            }
+        )
+        .sort("timestamp", -1)
+        .limit(30)
+    )
+    if not docs:
+        return None
+    return sum(d["value"] for d in docs) / len(docs)
+
+
+def find_open_incident(pond_id: str) -> dict | None:
+    return incidents_collection().find_one(
+        {"pond_id": pond_id, "state": {"$in": [IncidentState.OPEN.value, IncidentState.INVESTIGATING.value]}}
+    )
+
+
+def open_or_update_incident(pond_id: str, severity: Severity, title: str, description: str, evidence: IncidentEvidence, root_cause: str | None = None) -> str:
+    existing = find_open_incident(pond_id)
+    if existing:
+        incidents_collection().update_one(
+            {"_id": existing["_id"]},
+            {
+                "$set": {
+                    "updated_at": datetime.utcnow(),
+                    "severity": severity.value,
+                    "title": title,
+                    "description": description,
+                    "evidence": evidence.model_dump(),
+                    "root_cause": root_cause or existing.get("root_cause"),
+                }
+            },
+        )
+        return existing["_id"]
+
+    incident_id = f"inc-{uuid.uuid4().hex[:10]}"
+    inc = Incident(
+        id=incident_id,
+        farm_id=settings.FARM_ID,
+        pond_id=pond_id,
+        severity=severity,
+        title=title,
+        description=description,
+        evidence=evidence,
+        root_cause=root_cause,
+    )
+    incidents_collection().insert_one(inc.model_dump(by_alias=True))
+    events_collection().insert_one(
+        {
+            "timestamp": datetime.utcnow(),
+            "pond_id": pond_id,
+            "event": "incident_open",
+            "incident_id": incident_id,
+            "details": {"severity": severity.value, "title": title},
+        }
+    )
+    increment(
+        "incident.open",
+        tags={"pond": pond_id, "severity": severity.value, "root_cause": root_cause or "unknown"},
+    )
+    logger.error("incident opened", extra={"incident_id": incident_id, "pond": pond_id, "severity": severity.value})
+    return incident_id
+
+
+def check_pond(pond_id: str):
+    set_span_tags(pond_id=pond_id, device_type=DeviceType.WORKER.value)
+    now = datetime.utcnow()
+
+    co2 = derive_co2_for_pond(pond_id, now)
+    if co2 is not None:
+        if co2 > settings.CO2_WARN:
+            logger.warning("CO2 warning", extra={"pond": pond_id, "co2": co2})
+        write_co2_record(pond_id, now, co2)
+
+    avg_pump = avg_pump_power_last_n(pond_id, minutes=5)
+    pump_failed = avg_pump is not None and avg_pump < 50.0
+
+    row = evaluate_pond_do_drop(pond_id, window_sec=300)
+    drop_rate = row.get("do_drop_rate_mg_per_l_per_min") if row else None
+    min_do = row.get("min_do") if row else None
+
+    evidence = IncidentEvidence(
+        do_drop_rate_mg_per_l_per_min=drop_rate,
+        avg_pump_power_watts=avg_pump,
+        min_do=min_do,
+        do_window_sec=300,
+        notes={"timestamp": now.isoformat()},
+    )
+
+    severity = Severity.INFO
+    title = None
+    desc = None
+    root_cause = None
+
+    if pump_failed and (drop_rate is None or drop_rate >= 0):
+        severity = Severity.CRITICAL
+        title = "SỰ CỐ: Quạt nước hỏng → oxy sụt"
+        desc = (
+            f"Công suất quạt ao {pond_id} trung bình 5 phút gần nhất: {avg_pump:.1f} W. "
+            f"DO drop rate: {drop_rate:.4f} mg/L/phút, min DO: {min_do}"
+        )
+        root_cause = "pump_failure"
+    elif drop_rate is not None and drop_rate >= settings.DO_DROP_RATE_WARN_MGPERL_PER_MIN and (not pump_failed):
+        severity = Severity.WARNING
+        title = "Cảnh báo: Oxy giảm nhanh bất thường"
+        desc = (
+            f"Tốc độ giảm DO {drop_rate:.3f} mg/L/phút (> ngưỡng {settings.DO_DROP_RATE_WARN_MGPERL_PER_MIN}). "
+            f"Cần điều tra."
+        )
+        root_cause = "do_anomaly_drop"
+    elif min_do is not None and min_do < settings.DO_CRITICAL:
+        severity = Severity.CRITICAL
+        title = "CRITICAL: DO dưới ngưỡng nguy hiểm"
+        desc = f"Min DO = {min_do:.3f} mg/L < {settings.DO_CRITICAL}"
+        root_cause = "do_critical"
+    elif min_do is not None and min_do < settings.DO_WARN:
+        severity = Severity.WARNING
+        title = "WARNING: DO dưới ngưỡng cảnh báo"
+        desc = f"Min DO = {min_do:.3f} mg/L < {settings.DO_WARN}"
+        root_cause = "do_low"
+
+    if title:
+        open_or_update_incident(pond_id, severity, title, desc, evidence, root_cause=root_cause)
+    else:
+        existing = find_open_incident(pond_id)
+        if existing and min_do is not None and min_do > settings.DO_WARN + 0.5 and (avg_pump is None or avg_pump > 500):
+            incidents_collection().update_one(
+                {"_id": existing["_id"]},
+                {
+                    "$set": {
+                        "updated_at": datetime.utcnow(),
+                        "state": IncidentState.RECOVERED.value,
+                    },
+                    "$push": {
+                        "actions": {
+                            "time": datetime.utcnow(),
+                            "state": IncidentState.RECOVERED.value,
+                            "action": "worker_auto_recovered",
+                        }
+                    },
+                },
+            )
+            events_collection().insert_one(
+                {
+                    "timestamp": datetime.utcnow(),
+                    "pond_id": pond_id,
+                    "event": "incident_recovered",
+                    "incident_id": existing["_id"],
+                }
+            )
+            increment("incident.recovered", tags={"pond": pond_id})
+            logger.info("incident auto-recovered", extra={"pond": pond_id, "incident_id": existing["_id"]})
+
+
+def run_worker():
+    init_metrics()
+    logger.info("worker starting")
+    ponds = [f"pond-{i:02d}" for i in range(1, settings.NUM_PONDS + 1)]
+    while True:
+        t0 = time.time()
+        for pid in ponds:
+            try:
+                check_pond(pid)
+            except Exception as e:
+                logger.error("check_pond failed", extra={"pond": pid, "err": str(e)})
+        elapsed = time.time() - t0
+        time.sleep(max(1.0, 30.0 - elapsed))
+
+
+if __name__ == "__main__":
+    run_worker()
