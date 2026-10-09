@@ -11,7 +11,7 @@
 - [3. Kiến trúc hệ thống 5 Service](#3-kiến-trúc-hệ-thống-5-service)
 - [4. Cấu trúc thư mục code](#4-cấu-trúc-thư-mục-code)
 - [5. Hướng dẫn Cài đặt & Khởi động (Local Docker Compose)](#5-hướng-dẫn-cài-đặt--khởi-động-local-docker-compose)
-- [6. 7 Yêu Cầu Nghiêm Thu (Definition of Done) và Bằng chứng](#6-7-yêu-cầu-nghiêm-thu-definition-of-done-và-bằng-chứng)
+- [6. Bảng Đối Chiếu Yêu Cầu Kỹ Thuật Tối Thiểu BTC (MongoDB + Datadog)](#6-bảng-đối-chiếu-yêu-cầu-kỹ-thuật-tối-thiểu-btc-mongodb--datadog)
 - [7. Các Phương Pháp Inspect Dữ liệu Hôm nay (07/10 - Không cần key Datadog)](#7-các-phương-pháp-inspect-dữ-liệu-hôm-nay-0710---không-cần-key-datadog)
 - [8. 3 VIỆC CẦN LÀM NGÀY 10/10 (Key Trial Datadog Kích Hoạt)](#8-3-việc-cần-làm-ngày-1010-key-trial-datadog-kích-hoạt)
 - [9. Tham khảo & Công nghệ](#9-tham-khảo--công-nghệ)
@@ -194,20 +194,20 @@ docker compose down
 
 > Bảng này đối chiếu EXACT từng dòng yêu cầu BTC cập nhật ngày 09/10/2026. **Thiếu 1 dòng bất kỳ trong nhóm "Bắt buộc" = bài thi KHÔNG được chấm điểm.** Dự án ShrimpWatch của chúng ta đáp ứng 100% tất cả các yêu cầu Bắt buộc và làm VƯỢT trên nhiều mục Khuyến khích / Năng lực bổ sung (được cộng điểm ưu tiên).
 
-### 6.1 Cột Trái — MongoDB
+### 6.1  MongoDB
 
-#### 🔴 A. Bắt Buộc (4 dòng — THIẾU 1 DÒNG = KHÔNG CHẤM BÀI)
+#### 🔴 A. Bắt Buộc (4 dòng)
 
-| STT | Yêu cầu BTC (đúng văn bản) | Cách chúng ta đáp ứng chi tiết | Code Reference | Có |
+| STT | Yêu cầu BTC (đúng văn bản) | Cách chúng ta đáp ứng chi tiết | Code Reference | Khả năng đáp ứng |
 |---|---|---|---|---|
 | 1 | **MongoDB là nền tảng dữ liệu vận hành CHÍNH của ứng dụng** | Toàn bộ dữ liệu (6 ponds, metrics sensor, incidents lifecycle 4 bước, events, alkalinity_logs) đều lưu MongoDB. Không có DB phụ. FastAPI ingest / Simulator / Worker đều kết nối qua pymongo, tất cả CRUD qua DB duy nhất `shrimpwatch`. | [db.py](app/db.py), [docker-compose.yml MongoDB service](docker-compose.yml#L7-L34) | ✅ Có |
 | 2 | **Mô hình dữ liệu hợp lý và cách truy cập dữ liệu hiệu quả** | 5 collections thiết kế theo mô hình document tối ưu: `ponds` (lookup O(1) theo _id=pond_id), `metrics` (Time Series metaField=metadata tối ưu filter pond_id/device_type, granularity=seconds bucketed sort timestamp), `incidents` (embed array actions[] lịch sử 4 bước, không cần $lookup), `alkalinity_logs`, `events`. Tất cả queries đều có index/TS bucket tự nhiên. | [db.py init_collections()](app/db.py#L54-L140), [models.py Pydantic models](app/models.py) | ✅ Có |
 | 3 | **Aggregation Pipeline để phân tích dữ liệu phục vụ bài toán** | Pipeline 4-stage phân tích xu hướng oxy: `$match` pond → `$sort` timestamp → **`$setWindowFields` 300s documents window [-9,0]** tính `delta_do = $last - $first` → `$project` → `$limit 1` ra `do_drop_rate_mg_per_l_per_min`. Kết quả được lưu thẳng vào `incidents.evidence` sub-document khi mở sự cố. pytest PASSED. | [worker.py compute_do_drop_rate_pipeline()](app/worker.py), [test_pipeline.py pytest](tests/test_pipeline.py#L110-L138) | ✅ Có |
 | 4 | **Cách dùng MongoDB phải gắn CHẶT với bài toán vận hành đã chọn** | Toàn bộ **Incident Lifecycle 4 bước (phát hiện → điều tra → xử lý → hồi phục)** đều dùng MongoDB làm State Machine vận hành: (a) Worker $match + $setWindowFields kết hợp pump_power avg 5m → `insert_one` incident CRITICAL với `root_cause=pump_failure`; (b) PATCH `/incidents/{id}` state=investigating → `update_one $set state + $push actions[]`; (c) Repair pump → `update_one pump_failed=false` + state=resolving; (d) Worker nhận thấy DO hồi phục > 5mg/L → auto PATCH state=recovered. `incidents.evidence` chứa trực tiếp output aggregation pipeline (gắn 100% với vận hành). | [worker.py detect/evaluate_incidents](app/worker.py), [api/__init__.py patch_incident](app/api/__init__.py#L183-L205), [demo_incident.py](app/demo_incident.py) | ✅ Có |
 
-#### 🟡 B. Khuyến khích (Tùy bài toán — Cộng điểm ưu tiên nếu có)
+#### 🟡 B. Khuyến khích 
 
-| STT | Yêu cầu BTC (đúng văn bản) | Cách chúng ta đáp ứng chi tiết | Code Reference | Có |
+| STT | Yêu cầu BTC (đúng văn bản) | Cách chúng ta đáp ứng chi tiết | Code Reference | Khả năng đáp ứng |
 |---|---|---|---|---|
 | 1 | **Time Series Collections cho dữ liệu cảm biến, telemetry hoặc chuỗi thời gian** | Collection `metrics` tạo với `timeseries={timeField:'timestamp', metaField:'metadata', granularity:'seconds'}`. Chuyên dùng cho DO/pH/temp/pump/alkalinity/CO2 sensor. pytest timeseries_collection_metadata PASSED. | [db.py create_collection timeseries](app/db.py#L92-L108), [test_pipeline.py test TS](tests/test_pipeline.py#L74-L107) | ✅ Có |
 | 2 | **Window functions để phân tích xu hướng hoặc hành vi** | Aggregation `$setWindowFields` window 300s (10 mẫu × 30s) tính tốc độ sụt oxy mg/L/phút. Dùng làm trigger mở sự cố CRITICAL. | [worker.py $setWindowFields stage](app/worker.py) | ✅ Có |
@@ -216,20 +216,20 @@ docker compose down
 
 ---
 
-### 6.2 Cột Phải — Datadog
+### 6.2  Datadog
 
-#### 🔴 A. Bắt Buộc (4 dòng — THIẾU 1 DÒNG = KHÔNG CHẤM BÀI)
+#### 🔴 A. Bắt Buộc (4 dòng)
 
-| STT | Yêu cầu BTC (đúng văn bản) | Cách chúng ta đáp ứng chi tiết | Code Reference | Có |
+| STT | Yêu cầu BTC (đúng văn bản) | Cách chúng ta đáp ứng chi tiết | Code Reference | Khả năng đáp ứng |
 |---|---|---|---|---|
 | 1 | **Ít nhất 1 dashboard thể hiện tín hiệu vận hành và sức khỏe hệ thống** | Dashboard JSON định nghĩa 11 widgets chia 3 nhóm rõ ràng: (A) KPI Sức khỏe tổng quan (6 ponds avg DO/pH/CO2, số pumps OK, số CRITICAL incidents); (B) Biểu đồ line chart pond metric theo thời gian DO/pH/Temp với marker ngưỡng đề tài 26-32°C, DO 3-4 mg/L, pH 7.5-8.5; (C) Alkalinity bar chart 4 lần/ngày, CO2 area chart, pump_power heatmap theo pond×device. Có 3 template variables `$farm_id $pond $device_type` cho phép drill-down từng ao. | [datadog/dashboards/shrimpwatch_overview.json](datadog/dashboards/shrimpwatch_overview.json), [datadog_push.py push_dashboard()](app/datadog_push.py#L20-L45) | ✅ Có |
 | 2 | **Ít nhất 1 monitor hoặc alert gắn với một lỗi, suy giảm hoặc rủi ro vận hành có ý nghĩa** | **VƯỢT YÊU CẦU: 2 monitors thay vì 1:**<br>• Monitor chính CRITICAL (bắt buộc #4): `avg(last_5m):avg:pump_power.pump{service:shrimpwatch, farm_id:farm-001} < 50` → Alert khi **quạt nước hỏng** (rủi ro vận hành cốt lõi → oxy sụt nhanh → chết tôm) → message chứa đầy đủ quy trình 4 bước điều tra/xử lý.<br>• Monitor bonus WARNING: `avg(last_5m):anomalies(..., 'agile')` → detect DO sụt xu hướng bất thường. | [datadog/monitors/pump_failure_critical.json](datadog/monitors/pump_failure_critical.json), [do_drop_warning.json](datadog/monitors/do_drop_warning.json) | ✅ Có |
 | 3 | **Ít nhất 1 năng lực bổ sung: Log Management, APM, Distributed Tracing, RUM, Anomaly Detection, hoặc Agent Observability** | **VƯỢT YÊU CẦU ĐẾN 4/6 NĂNG LỰC BỔ SUNG:**<br>• ✅ **Log Management** (structured JSON logs python-json-logger; Agent `feature_logs_enabled=true`; Logs Intake cấu hình `conf.d/python.d` log collection trên 3 containers api/simulator/worker)<br>• ✅ **APM** (ddtrace-run auto instruments FastAPI endpoints; APM Receiver 0.0.0.0:8126 running; đã nhận 24 spans real)<br>• ✅ **Distributed Tracing** (propagate `trace_id` xuyên services; TraceIdFilter inject trace_id/span_id vào mọi dòng log → có thể jump từ 1 dòng log sang trace tương ứng)<br>• ✅ **Agent Observability** (http_check integration polling `/healthz` mỗi 15s; `agent status` CLI có thể xem DogStatsD samples / APM traces / Running Checks / Forwarder health bất kỳ lúc nào)<br>(RUM / Anomaly Detection không dùng vì là backend IoT, không có frontend JS.) | [logging_setup.py TraceIdFilter](app/logging_setup.py#L45-L62), [metrics.py DogStatsD + span tags](app/metrics.py), [Dockerfile CMD ddtrace-run](Dockerfile#L25-L29), agent status bạn đã gửi ngày 07/10 có `http_check Running [OK]` `APM Status Running 14 traces / 24 spans` `feature_logs_enabled true` | ✅ Có |
 | 4 | **Kết nối metrics, logs, traces và bối cảnh vận hành để hỗ trợ phát hiện, điều tra hoặc xử lý** | **Correlation 3 trụ cột 100% thống nhất:**<br>• Tags chung: Mọi DogStatsD gauge / increment đều append tags `[farm_id, pond, device_type, source, env]`.<br>• Trace ↔ Log liên kết: Mọi dòng JSON log có `trace_id` (32 ký tự hex) + `span_id` (được inject từ context active span ddtrace qua TraceIdFilter filter).<br>• Dashboard unified: Template variables `$farm_id $pond $device_type` filter ĐỒNG BỘ cả metric panel + log stream trong dashboard.<br>• Workflow vận hành chuẩn: Monitor Alert Đỏ 🚨 → Mở Dashboard chọn $pond=pond-03 → vào Logs search `pond:pond-03` → tìm log `Incident CRITICAL opened` → click `trace_id` link → nhảy APM Trace waterfall thấy span FastAPI POST /ingest/batch + span con pymongo $setWindowFields aggregation → xác nhận nguyên nhân quạt hỏng → PATCH incident investigating → sửa quạt → resolving → recovered. | [metrics.py gauge() append tags](app/metrics.py#L55-L66), [logging_setup.py TraceIdFilter](app/logging_setup.py#L45-L62), [dashboard template variables](datadog/dashboards/shrimpwatch_overview.json) (trường `template_variables` array $farm_id/$pond/$device_type) | ✅ Có |
 
-#### 🟡 B. Tùy chọn nâng cao (Được khuyến khích nhưng không bắt buộc)
+#### 🟡 B. Tùy chọn nâng cao
 
-| Yêu cầu BTC (đúng văn bản) | Cách chúng ta đáp ứng chi tiết | Có |
+| Yêu cầu BTC (đúng văn bản) | Cách chúng ta đáp ứng chi tiết | Khả năng đáp ứng |
 |---|---|---|
 | AI Observability và Agent Observability được khuyến khích nhưng không bắt buộc | • ✅ **Agent Observability CÓ RÕ RÀNG:** Integration http_check monitor /healthz endpoint (6 runs OK trong 2 phút chạy đầu, average exec 62ms); `agent status` output có Aggregator / Dogstatsd Metric Sample / Service Check counters cho phép monitor chính Agent. Dashboard có widget KPI số CRITICAL incidents = sức khỏe vận hành.<br>• ❌ **AI Observability không sử dụng:** Bits AI / LLM Notebooks không nằm trong yêu cầu bài toán; đề tài cấm sử dụng AI/LLM (xác định trong mô tả phạm vi). | ✅ Có |
 
