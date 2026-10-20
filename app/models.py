@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Source(str, Enum):
@@ -86,6 +86,8 @@ class IncidentEvidence(BaseModel):
 
 
 class Incident(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str | None = Field(default=None, alias="_id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

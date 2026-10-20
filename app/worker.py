@@ -5,6 +5,8 @@ import time
 import uuid
 from datetime import datetime, timedelta
 
+from ddtrace import tracer
+
 from app.config import settings
 from app.db import (
     compute_do_drop_rate_pipeline,
@@ -257,7 +259,8 @@ def run_worker():
         t0 = time.time()
         for pid in ponds:
             try:
-                check_pond(pid)
+                with tracer.trace("worker.check_pond", resource=pid):
+                    check_pond(pid)
             except Exception as e:
                 logger.error("check_pond failed", extra={"pond": pid, "err": str(e)})
         elapsed = time.time() - t0

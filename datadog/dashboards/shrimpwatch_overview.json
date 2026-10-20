@@ -9,7 +9,6 @@
   "layout_type": "ordered",
   "reflow_type": "fixed",
   "notify_list": [],
-  "is_read_only": false,
   "widgets": [
     {
       "id": 1,
@@ -26,7 +25,7 @@
               "title": "Sự cố ĐANG MỞ",
               "title_size": "16",
               "title_align": "left",
-              "timeframe": "live_10m",
+              "time": {"live_span": "10m"},
               "autoscale": true,
               "precision": 0,
               "requests": [
@@ -43,7 +42,7 @@
               "title": "Sự cố đã hồi phục",
               "title_size": "16",
               "title_align": "left",
-              "timeframe": "last_1d",
+              "time": {"live_span": "1d"},
               "autoscale": true,
               "precision": 0,
               "requests": [
@@ -60,7 +59,7 @@
               "title": "Số lần quạt hỏng",
               "title_size": "16",
               "title_align": "left",
-              "timeframe": "last_1d",
+              "time": {"live_span": "1d"},
               "autoscale": true,
               "precision": 0,
               "requests": [
@@ -77,7 +76,7 @@
               "title": "Records ingested / phút",
               "title_size": "16",
               "title_align": "left",
-              "timeframe": "last_5m",
+              "time": {"live_span": "5m"},
               "autoscale": true,
               "precision": 0,
               "requests": [
@@ -106,10 +105,10 @@
               "title": "Nhiệt độ (°C) - ngưỡng 26-32",
               "title_size": "16",
               "title_align": "left",
-              "timeframe": "last_4h",
+              "time": {"live_span": "4h"},
               "legend_layout": "auto",
               "requests": [
-                {"formulas": [{"formula": "query1", "style": {"line_type": "solid"}}],
+                {"formulas": [{"formula": "query1"}],
                  "response_format": "timeseries",
                  "queries": [{"name": "query1", "data_source": "metrics", "query": "avg:shrimpwatch.metric.temperature{$farm_id,$pond,$device_type} by {pond}.rollup(avg,30)"}],
                  "style": {"palette": "warm"}
@@ -129,7 +128,7 @@
               "title": "DO (mg/L) - Warning dưới 4, Critical dưới 3",
               "title_size": "16",
               "title_align": "left",
-              "timeframe": "last_4h",
+              "time": {"live_span": "4h"},
               "legend_layout": "auto",
               "requests": [
                 {"formulas": [{"formula": "query1"}],
@@ -152,7 +151,7 @@
               "title": "pH - ngưỡng 7.5 - 8.5",
               "title_size": "16",
               "title_align": "left",
-              "timeframe": "last_4h",
+              "time": {"live_span": "4h"},
               "legend_layout": "auto",
               "requests": [
                 {"formulas": [{"formula": "query1"}],
@@ -187,7 +186,7 @@
               "title": "Độ kiềm (mg CaCO3/L) - Warning dưới 120",
               "title_size": "16",
               "title_align": "left",
-              "timeframe": "last_24h",
+              "time": {"live_span": "1d"},
               "legend_layout": "auto",
               "requests": [
                 {"formulas": [{"formula": "query1"}],
@@ -209,7 +208,7 @@
               "title": "CO2 (mg/L) - derived từ pH & độ kiềm, Warning trên 10",
               "title_size": "16",
               "title_align": "left",
-              "timeframe": "last_6h",
+              "time": {"live_span": "4h"},
               "legend_layout": "auto",
               "requests": [
                 {"formulas": [{"formula": "query1"}],
@@ -231,7 +230,7 @@
               "title": "Công suất quạt nước (W) - 0 = quạt hỏng",
               "title_size": "16",
               "title_align": "left",
-              "timeframe": "last_4h",
+              "time": {"live_span": "4h"},
               "legend_layout": "auto",
               "requests": [
                 {"formulas": [{"formula": "query1"}],
@@ -257,9 +256,7 @@
               },
               "node_type": "host",
               "group": ["pond"],
-              "scope": ["farm_id:farm-001"],
-              "palette": "blue_to_red",
-              "metric_unit_display": "scaled"
+              "scope": ["farm_id:farm-001"]
             },
             "layout": {"x": 4, "y": 2, "width": 4, "height": 2}
           }

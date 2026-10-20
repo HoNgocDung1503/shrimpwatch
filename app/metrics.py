@@ -8,7 +8,7 @@ def init_metrics():
     options = {
         "statsd_host": settings.DD_AGENT_HOST,
         "statsd_port": settings.DD_DOGSTATSD_PORT,
-        "namespace": "shrimpwatch",
+        "statsd_namespace": "shrimpwatch",
     }
     initialize(**options)
 
