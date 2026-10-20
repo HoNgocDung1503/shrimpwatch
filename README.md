@@ -340,7 +340,7 @@ Log đã về Datadog: truy vấn `service:shrimpwatch` (30 phút gần nhất) 
 
 | Yêu cầu BTC | ShrimpWatch đáp ứng | Bằng chứng |
 |---|---|---|
-| Agent Observability | Theo dõi sức khỏe Datadog Agent qua `agent status` và `http_check` | [03_agent_status.png](assets_proof/03_agent_status.png) |
+| Agent Observability | Theo dõi sức khỏe Datadog Agent qua `agent status` và `http_check` | [03_agent_status.png](assets_proof/03_agent_status.png)  [03_agent_status_2.png](assets_proof/03_agent_status_2.png)|
 | AI Observability | Dùng Watchdog Insights để phát hiện bất thường trong log | [09_datadog_correlation_log_trace_metric.png](assets_proof/09_datadog_correlation_log_trace_metric.png) |
 
 ---
