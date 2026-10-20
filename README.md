@@ -290,7 +290,7 @@ Kết quả này được ghi trực tiếp vào `incidents.evidence.do_drop_rat
 | Loại | ID | Tên | Trạng thái |
 |---|---|---|---|
 | Dashboard | `sid-7q3-hug` | ShrimpWatch - Giám sát chất lượng nước Ao nuôi tôm thẻ chân trắng | Đang hoạt động |
-| Monitor | `334608203` | [ShrimpWatch] CRITICAL: Quạt nước hỏng (Pump failure) | **Alert** (báo động đỏ thật) |
+| Monitor | `334608203` | [ShrimpWatch] CRITICAL: Quạt nước hỏng (Pump failure) | **Alert** — đã kích hoạt thật lúc 06:03 UTC, tự hồi phục về `OK` sau khi quạt được khôi phục (đúng cơ chế recovery) |
 | Monitor | `334608560` | [ShrimpWatch] WARNING: DO giảm nhanh bất thường | No Data (thuật toán `anomalies` cần thêm dữ liệu nền) |
 | Monitor | `334609031` | Watchdog Anomaly for `service` | OK |
 | Monitor | `334609512` | High Error Rate on `service.name` (APM) | OK |
@@ -410,13 +410,14 @@ Chụp phần đầu báo cáo (Agent version, Running Checks, `http_check`).
 
 **10. `08_datadog_monitor_alert.png` — Cảnh báo đỏ**
 1. Datadog → **Monitors** → **Manage Monitors** → lọc tag `shrimpwatch`.
-2. Mở monitor **[ShrimpWatch] CRITICAL: Quạt nước hỏng** (ID `334608203`) — đang ở trạng thái **Alert**.
-3. Chụp vùng trạng thái đỏ + biểu đồ giá trị `pump_power` + phần message.
-> Nếu monitor đang **OK**, hãy tạo lại cảnh báo:
-> ```powershell
-> docker compose exec -T api python -c "import httpx;print(httpx.post('http://localhost:8000/ponds/pond-03/pump/fail',params={'failed':'true'}).json())"
-> ```
-> Giữ nguyên khoảng 5 phút cho monitor chuyển sang **Alert**, chụp xong rồi khôi phục bằng `failed=false`.
+2. Mở monitor **[ShrimpWatch] CRITICAL: Quạt nước hỏng** (ID `334608203`) và xem trạng thái hiện tại.
+3. Nếu monitor đang `OK`, hãy kích hoạt lại cảnh báo thật bằng lệnh sau rồi chờ **6–7 phút** (5 phút cửa sổ cảnh báo + 90 giây `evaluation_delay`):
+   ```powershell
+   docker compose exec -T api python -c "import httpx;print(httpx.post('http://localhost:8000/ponds/pond-05/pump/fail',params={'failed':'true'}).json())"
+   ```
+   Lúc này worker cũng mở một sự cố CRITICAL mới cho ao 5 → có thêm dữ liệu để chụp ảnh `06_mongodb_document_incident.png`.
+4. Chụp vùng trạng thái đỏ + biểu đồ giá trị `pump_power` + phần message của monitor.
+5. Chụp xong, khôi phục quạt: `POST /ponds/pond-05/pump/fail?failed=false`.
 
 **11. `09_datadog_correlation_log_trace_metric.png` — Log ↔ Trace ↔ Metric**
 1. Datadog → **Logs** → query: `service:shrimpwatch`
