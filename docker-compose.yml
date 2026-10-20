@@ -35,7 +35,7 @@ services:
       DD_AGENT_HOST: datadog-agent
       DD_TRACE_AGENT_PORT: 8126
       DD_DOGSTATSD_PORT: 8125
-      MONGODB_URI: mongodb://shrimp_app:shrimp_pass@mongodb:27017/shrimpwatch?authSource=shrimpwatch
+      MONGODB_URI: ${MONGODB_URI:-mongodb://shrimp_app:shrimp_pass@mongodb:27017/shrimpwatch?authSource=shrimpwatch}
     ports:
       - "8000:8000"
     volumes:
@@ -58,7 +58,7 @@ services:
       DD_AGENT_HOST: datadog-agent
       DD_TRACE_AGENT_PORT: 8126
       DD_DOGSTATSD_PORT: 8125
-      MONGODB_URI: mongodb://shrimp_app:shrimp_pass@mongodb:27017/shrimpwatch?authSource=shrimpwatch
+      MONGODB_URI: ${MONGODB_URI:-mongodb://shrimp_app:shrimp_pass@mongodb:27017/shrimpwatch?authSource=shrimpwatch}
       API_URL: http://api:8000
     volumes:
       - ./app:/app/app
@@ -79,7 +79,7 @@ services:
       DD_AGENT_HOST: datadog-agent
       DD_TRACE_AGENT_PORT: 8126
       DD_DOGSTATSD_PORT: 8125
-      MONGODB_URI: mongodb://shrimp_app:shrimp_pass@mongodb:27017/shrimpwatch?authSource=shrimpwatch
+      MONGODB_URI: ${MONGODB_URI:-mongodb://shrimp_app:shrimp_pass@mongodb:27017/shrimpwatch?authSource=shrimpwatch}
     volumes:
       - ./app:/app/app
 

@@ -170,16 +170,17 @@ async def run_simulation():
     while t <= now:
         for pid in ponds:
             recs = sims[pid].step(t, pump_states.get(pid, False))
-            records.extend([r.model_dump() for r in recs])
+            records.extend([r.model_dump(mode="json") for r in recs])
         t += timedelta(seconds=settings.SIMULATOR_INTERVAL_SEC)
-    if records:
+    for i in range(0, len(records), 1000):
+        chunk = records[i : i + 1000]
         try:
             resp = httpx.post(
                 f"{api_url}/ingest/batch",
-                json={"records": records[:1000]},
-                timeout=30.0,
+                json={"records": chunk},
+                timeout=60.0,
             )
-            logger.info("backfill ingest", extra={"status": resp.status_code, "count": len(records[:1000])})
+            logger.info("backfill ingest", extra={"status": resp.status_code, "count": len(chunk)})
         except Exception as e:
             logger.warning("backfill failed", extra={"err": str(e)})
 
