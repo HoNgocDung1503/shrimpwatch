@@ -118,7 +118,10 @@ Dự án đáp ứng 100% các tiêu chí từ Ban tổ chức (BTC).
 | **Gắn chặt với vận hành** | MongoDB điều khiển toàn bộ trạng thái sự cố (State Machine). | [04_swagger_ui_incidents.png](assets_proof/04_swagger_ui_incidents.png) |
 
 #### 🟡 Tùy chọn
-- **Xử lý hướng sự kiện:** Lưu vết mọi thay đổi trạng thái sự cố vào collection `events` để phục vụ hậu kiểm.
+| Yêu cầu BTC | Cách ShrimpWatch đáp ứng | Bằng chứng |
+|---|---|---|
+| **Xử lý hướng sự kiện** | Lưu vết mọi thay đổi trạng thái sự cố vào collection `events` để phục vụ hậu kiểm. | [05_mongodb_event_log.png](assets_proof/05_mongodb_event_log.png) |
+| **Change Streams / Khác** | Cấu trúc sẵn sàng để tích hợp Change Streams cho thông báo thời gian thực. | [db.py](app/db.py) |
 
 ---
 
@@ -130,11 +133,13 @@ Dự án đáp ứng 100% các tiêu chí từ Ban tổ chức (BTC).
 | **Ít nhất 1 Dashboard** | Dashboard tổng quan sức khỏe 6 ao nuôi với đầy đủ chỉ số môi trường. | [07_datadog_dashboard.png](assets_proof/07_datadog_dashboard.png) |
 | **Ít nhất 1 Monitor/Alert** | Cảnh báo CRITICAL khi quạt hỏng và WARNING khi oxy giảm bất thường. | [08_datadog_monitor_alert.png](assets_proof/08_datadog_monitor_alert.png) |
 | **Năng lực bổ sung** | Tích hợp đồng thời APM, Log Management và Distributed Tracing. | [09_datadog_correlation_log_trace_metric.png](assets_proof/09_datadog_correlation_log_trace_metric.png) |
-| **Kết nối Metrics/Logs/Traces** | Gắn `trace_id` xuyên suốt giúp điều tra sự cố từ cảnh báo đến mã nguồn. | [logging_setup.py](app/logging_setup.py) |
+| **Kết nối Metrics/Logs/Traces** | Gắn `trace_id` xuyên suốt giúp điều tra sự cố từ cảnh báo đến mã nguồn. | [09_datadog_correlation_log_trace_metric.png](assets_proof/09_datadog_correlation_log_trace_metric.png) |
 
 #### 🟡 Tùy chọn nâng cao
-- **Agent Observability:** Theo dõi sức khỏe hệ thống Agent qua `agent status` và `http_check`.
-- **AI Observability:** (Sẵn sàng mở rộng khi có dữ liệu thực tế trên Cloud).
+| Yêu cầu BTC | Cách ShrimpWatch đáp ứng | Bằng chứng |
+|---|---|---|
+| **Agent Observability** | Theo dõi sức khỏe hệ thống Agent qua `agent status` và `http_check`. | [03_agent_status.png](assets_proof/03_agent_status.png) |
+| **AI Observability** | Sử dụng Watchdog Insights để tự động phát hiện các điểm bất thường trong log. | [09_datadog_correlation_log_trace_metric.png](assets_proof/09_datadog_correlation_log_trace_metric.png) |
 
 ---
 
@@ -147,12 +152,15 @@ Dự án đáp ứng 100% các tiêu chí từ Ban tổ chức (BTC).
 | 1 | `01_mongo_timeseries_ttl.png` | Cấu hình Time Series và TTL trong MongoDB. |
 | 2 | `02_pytest_9_xanh.png` | Kết quả chạy kiểm thử tự động (9/9 passed). |
 | 3 | `03_agent_status.png` | Trạng thái hoạt động của Datadog Agent. |
-| 4 | `07_datadog_dashboard.png` | Dashboard tổng quan (Phần 1: KPI & Sức khỏe). |
-| 5 | `07_datadog_dashboard_2.png` | Dashboard chi tiết (Phần 2: pH, Độ kiềm, Heatmap). |
-| 6 | `07_datadog_dashboard_3.png` | Dashboard chi tiết (Phần 3: Nhiệt độ, Oxy). |
-| 7 | `08_datadog_monitor_alert.png` | Cảnh báo đỏ (Alert) khi xảy ra sự cố hỏng quạt. |
-| 8 | `09_datadog_correlation_log_trace_metric.png` | Truy vết Log ↔ Trace ↔ Metric trên Datadog. |
-| 9 | `ShrimpWatch_Lifecycle.mp4` | Video demo trọn vẹn vòng đời sự cố. |
+| 4 | `04_swagger_ui_incidents.png` | Giao diện quản lý sự cố (Incident Management). |
+| 5 | `05_mongodb_event_log.png` | Nhật ký sự kiện (Event Log) trong MongoDB. |
+| 6 | `06_mongodb_document_incident.png` | Cấu trúc dữ liệu Document của sự cố. |
+| 7 | `07_datadog_dashboard.png` | Dashboard tổng quan (Phần 1: KPI & Sức khỏe). |
+| 8 | `07_datadog_dashboard_2.png` | Dashboard chi tiết (Phần 2: pH, Độ kiềm, Heatmap). |
+| 9 | `07_datadog_dashboard_3.png` | Dashboard chi tiết (Phần 3: Nhiệt độ, Oxy). |
+| 10 | `08_datadog_monitor_alert.png` | Cảnh báo đỏ (Alert) khi xảy ra sự cố hỏng quạt. |
+| 11 | `09_datadog_correlation_log_trace_metric.png` | Truy vết Log ↔ Trace ↔ Metric trên Datadog. |
+| 12 | `ShrimpWatch_Lifecycle.mp4` | Video demo trọn vẹn vòng đời sự cố. |
 
 ---
 
