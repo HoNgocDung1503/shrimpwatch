@@ -346,7 +346,7 @@ Log đã về Datadog: truy vấn `service:shrimpwatch` (30 phút gần nhất) 
 
 ## 📂 Danh mục bằng chứng & Hướng dẫn lấy ảnh
 
-Tất cả ảnh được lưu trong thư mục **`assets_proof/`** với đúng tên tệp dưới đây (README đã trỏ link sẵn, chỉ cần thả ảnh vào là hiển thị).
+Tất cả ảnh được lưu trong thư mục **`assets_proof/`** với đúng tên tệp dưới đây.
 
 | # | Tên tệp | Nội dung minh chứng |
 |---|---|---|
