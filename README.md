@@ -23,7 +23,6 @@
 7. [Kết quả kiểm chứng (số liệu thật)](#-kết-quả-kiểm-chứng-số-liệu-thật)
 8. [Đối chiếu yêu cầu kỹ thuật của BTC](#-đối-chiếu-yêu-cầu-kỹ-thuật-của-btc)
 9. [Danh mục bằng chứng & Hướng dẫn lấy ảnh](#-danh-mục-bằng-chứng--hướng-dẫn-lấy-ảnh)
-10. [Kiểm thử tự động](#-kiểm-thử-tự-động)
 11. [Xử lý sự cố thường gặp](#-xử-lý-sự-cố-thường-gặp)
 
 ---
