@@ -103,23 +103,38 @@ docker compose exec api python -m app.demo_incident
 
 ## 📑 Đối chiếu Yêu cầu Kỹ thuật (BTC Compliance)
 
-Dự án đáp ứng 100% các tiêu chí bắt buộc và khuyến khích từ Ban tổ chức.
+Dự án đáp ứng 100% các tiêu chí từ Ban tổ chức (BTC).
 
-### 6.1 MongoDB (Lưu trữ & Phân tích)
+### 6.1 MongoDB (Nền tảng dữ liệu vận hành)
+
+#### 🔴 Bắt buộc (6/6 tiêu chí)
 | Yêu cầu BTC | Cách ShrimpWatch đáp ứng | Bằng chứng |
 |---|---|---|
-| **Nền tảng CHÍNH** | MongoDB lưu trữ toàn bộ dữ liệu sensor, sự cố và vận hành. | [01_mongo_timeseries_ttl.png](assets_proof/01_mongo_timeseries_ttl.png) |
-| **Time Series** | Sử dụng Time Series Collection tối ưu cho dữ liệu cảm biến 30s. | [db.py](app/db.py#L62-L68) |
-| **Aggregation Pipeline** | Dùng `$setWindowFields` tính tốc độ sụt oxy để cảnh báo sớm. | [worker.py](app/worker.py#L81) |
-| **TTL Index** | Tự động xóa dữ liệu cũ sau 7 ngày để tiết kiệm tài nguyên. | [db.py](app/db.py#L69) |
+| **Nền tảng CHÍNH** | Toàn bộ dữ liệu sensor, sự cố, và lịch sử vận hành lưu tại MongoDB. | [01_mongo_timeseries_ttl.png](assets_proof/01_mongo_timeseries_ttl.png) |
+| **Time Series Collections** | Dữ liệu telemetry (DO, pH, Temp) lưu trong Time Series Collection. | [db.py](app/db.py#L62-L68) |
+| **Aggregation & Window** | Dùng `$setWindowFields` phân tích xu hướng oxy trong cửa sổ 5 phút. | [worker.py](app/worker.py#L81) |
+| **expireAfterSeconds** | Cấu hình TTL tự động xóa dữ liệu sensor cũ sau 7 ngày. | [db.py](app/db.py#L69) |
+| **Mô hình & Truy cập hiệu quả** | Thiết kế Document model tối ưu, đánh index trên metadata và timestamp. | [models.py](app/models.py) |
+| **Gắn chặt với vận hành** | MongoDB điều khiển toàn bộ trạng thái sự cố (State Machine). | [04_swagger_ui_incidents.png](assets_proof/04_swagger_ui_incidents.png) |
 
-### 6.2 Datadog (Giám sát & Cảnh báo)
+#### 🟡 Tùy chọn
+- **Xử lý hướng sự kiện:** Lưu vết mọi thay đổi trạng thái sự cố vào collection `events` để phục vụ hậu kiểm.
+
+---
+
+### 6.2 Datadog (Quan sát & Cảnh báo)
+
+#### 🔴 Bắt buộc (4/4 tiêu chí)
 | Yêu cầu BTC | Cách ShrimpWatch đáp ứng | Bằng chứng |
 |---|---|---|
-| **Dashboard** | Bảng điều khiển trực quan hiển thị sức khỏe của 6 ao nuôi. | [07_datadog_dashboard.png](assets_proof/07_datadog_dashboard.png) |
-| **Monitor/Alert** | Tự động cảnh báo đỏ khi quạt hỏng hoặc oxy giảm nhanh. | [08_datadog_monitor_alert.png](assets_proof/08_datadog_monitor_alert.png) |
-| **APM & Logs** | Truy vết chi tiết từ Log sang Trace để tìm nguyên nhân gốc rễ. | [09_datadog_correlation_log_trace_metric.png](assets_proof/09_datadog_correlation_log_trace_metric.png) |
-| **Distributed Tracing** | Gắn trace_id vào mọi dòng log để kết nối dữ liệu vận hành. | [logging_setup.py](app/logging_setup.py) |
+| **Ít nhất 1 Dashboard** | Dashboard tổng quan sức khỏe 6 ao nuôi với đầy đủ chỉ số môi trường. | [07_datadog_dashboard.png](assets_proof/07_datadog_dashboard.png) |
+| **Ít nhất 1 Monitor/Alert** | Cảnh báo CRITICAL khi quạt hỏng và WARNING khi oxy giảm bất thường. | [08_datadog_monitor_alert.png](assets_proof/08_datadog_monitor_alert.png) |
+| **Năng lực bổ sung** | Tích hợp đồng thời APM, Log Management và Distributed Tracing. | [09_datadog_correlation_log_trace_metric.png](assets_proof/09_datadog_correlation_log_trace_metric.png) |
+| **Kết nối Metrics/Logs/Traces** | Gắn `trace_id` xuyên suốt giúp điều tra sự cố từ cảnh báo đến mã nguồn. | [logging_setup.py](app/logging_setup.py) |
+
+#### 🟡 Tùy chọn nâng cao
+- **Agent Observability:** Theo dõi sức khỏe hệ thống Agent qua `agent status` và `http_check`.
+- **AI Observability:** (Sẵn sàng mở rộng khi có dữ liệu thực tế trên Cloud).
 
 ---
 
