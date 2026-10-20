@@ -331,7 +331,7 @@ Log đã về Datadog: truy vấn `service:shrimpwatch` (30 phút gần nhất) 
 
 | # | Yêu cầu BTC | ShrimpWatch đáp ứng | Bằng chứng |
 |---|---|---|---|
-| 1 | **Ít nhất 1 Dashboard** | Dashboard tổng quan sức khỏe 6 ao: KPI sự cố, nhiệt độ, DO, pH, độ kiềm, CO₂, công suất quạt, heatmap | [07_datadog_dashboard.png](assets_proof/07_datadog_dashboard.png) · [shrimpwatch_overview.json](datadog/dashboards/shrimpwatch_overview.json) |
+| 1 | **Ít nhất 1 Dashboard** | Dashboard tổng quan sức khỏe 6 ao: KPI sự cố, nhiệt độ, DO, pH, độ kiềm, CO₂, công suất quạt, heatmap | [07_datadog_dashboard.png](assets_proof/07_datadog_dashboard.png)   [07_datadog_dashboard_2.png](assets_proof/07_datadog_dashboard_2.png)   [07_datadog_dashboard_3.png](assets_proof/07_datadog_dashboard_3.png)   · [shrimpwatch_overview.json](datadog/dashboards/shrimpwatch_overview.json) |
 | 2 | **Ít nhất 1 Monitor/Alert** | Monitor **CRITICAL** khi quạt hỏng (`pump_power < 50W`) và **WARNING** khi oxy sụt bất thường | [08_datadog_monitor_alert.png](assets_proof/08_datadog_monitor_alert.png) · [pump_failure_critical.json](datadog/monitors/pump_failure_critical.json) |
 | 3 | **Năng lực bổ sung** | Tích hợp đồng thời Metrics (DogStatsD), Log Management, APM và Distributed Tracing | [09_datadog_correlation_log_trace_metric.png](assets_proof/09_datadog_correlation_log_trace_metric.png) |
 | 4 | **Kết nối Metrics/Logs/Traces** | Mỗi log mang `dd.trace_id`; span được gắn tag `pond`, `device_type` → điều tra từ cảnh báo tới dòng code | [09_datadog_correlation_log_trace_metric.png](assets_proof/09_datadog_correlation_log_trace_metric.png) · [logging_setup.py](app/logging_setup.py) |
@@ -340,7 +340,7 @@ Log đã về Datadog: truy vấn `service:shrimpwatch` (30 phút gần nhất) 
 
 | Yêu cầu BTC | ShrimpWatch đáp ứng | Bằng chứng |
 |---|---|---|
-| Agent Observability | Theo dõi sức khỏe Datadog Agent qua `agent status` và `http_check` | [03_agent_status.png](assets_proof/03_agent_status.png)  [03_agent_status_2.png](assets_proof/03_agent_status_2.png)|
+| Agent Observability | Theo dõi sức khỏe Datadog Agent qua `agent status` và `http_check` | [03_agent_status.png](assets_proof/03_agent_status.png)    [03_agent_status_2.png](assets_proof/03_agent_status_2.png)|
 | AI Observability | Dùng Watchdog Insights để phát hiện bất thường trong log | [09_datadog_correlation_log_trace_metric.png](assets_proof/09_datadog_correlation_log_trace_metric.png) |
 
 ---
