@@ -366,7 +366,7 @@ Tất cả ảnh được lưu trong thư mục **`assets_proof/`** với đúng
 | 13 | `13_mongodb_atlas_cluster.png` | Cụm MongoDB Atlas (Cloud, gói M0) đang hoạt động |
 | 14 | `14_mongodb_atlas_data.png` | Dữ liệu cảm biến 6 ao chảy trực tiếp lên Atlas |
 
-### 📸 Cách lấy từng ảnh (bấm ở đâu)
+### 📸 Cách lấy từng ảnh
 
 **1. `01_mongo_timeseries_ttl.png` — Time Series + TTL**
 1. Atlas → **Database** → cluster0 → **Browse Collections** → nút **`>_` (Open MongoDB Shell)**.
@@ -453,19 +453,6 @@ Bộ test bao phủ: health check, seed collection, cấu hình Time Series + TT
 
 ---
 
-## 🔧 Xử lý sự cố thường gặp
-
-| Hiện tượng | Nguyên nhân | Cách xử lý |
-|---|---|---|
-| `ServerSelectionTimeoutError` / không kết nối được Atlas | IP chưa được whitelist | Atlas → *Network Access* → thêm `0.0.0.0/0` |
-| `healthz` báo `"mongo": true` nhưng Atlas không thấy dữ liệu mới | Còn kết nối cũ trong pool | `docker compose restart api worker simulator` |
-| `/healthz` báo `"mongo": false` | Sai `MONGODB_URI` hoặc thiếu `dnspython` | Kiểm tra `.env`, chạy `docker compose up -d --build` |
-| Monitor CRITICAL không chuyển sang Alert | `pump_power` vẫn ≥ 50W | Đánh dấu quạt hỏng: `POST /ponds/pond-03/pump/fail?failed=true` |
-| Monitor WARNING hiển thị *No Data* | Hàm `anomalies()` cần dữ liệu nền dài (≥ 1 ngày) để dựng mô hình | Để hệ thống chạy tích luỹ thêm, hoặc xem cảnh báo CRITICAL làm bằng chứng chính |
-| Log worker có `trace_id` toàn số 0 | Đoạn log nằm ngoài span | Đã xử lý: `worker.check_pond` được bọc trong `tracer.trace(...)` |
-| Backfill lịch sử lỗi `datetime not JSON serializable` | Kiểu `datetime` không serialize được | Đã xử lý: chia lô 1000 bản ghi và dùng `model_dump(mode="json")` |
-
----
 
 ## 💻 Công nghệ sử dụng
 
