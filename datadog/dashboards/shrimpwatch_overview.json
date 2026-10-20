@@ -30,7 +30,7 @@
               "precision": 0,
               "requests": [
                 {"formulas": [{"formula": "query1"}], "response_format": "scalar",
-                 "queries": [{"name": "query1", "data_source": "metrics", "query": "sum:shrimpwatch.incident.open{$farm_id,$pond}.as_count()"}]}
+                 "queries": [{"name": "query1", "data_source": "metrics", "query": "count:shrimpwatch.incident.open{$farm_id,$pond}"}]}
               ]
             },
             "layout": {"x": 0, "y": 0, "width": 2, "height": 2}
@@ -47,7 +47,7 @@
               "precision": 0,
               "requests": [
                 {"formulas": [{"formula": "query1"}], "response_format": "scalar",
-                 "queries": [{"name": "query1", "data_source": "metrics", "query": "sum:shrimpwatch.incident.recovered{$farm_id,$pond}.as_count()"}]}
+                 "queries": [{"name": "query1", "data_source": "metrics", "query": "sum:shrimpwatch.incident.recovered{$farm_id,$pond}.as_count().rollup(sum, 86400)"}]}
               ]
             },
             "layout": {"x": 2, "y": 0, "width": 2, "height": 2}
@@ -64,7 +64,7 @@
               "precision": 0,
               "requests": [
                 {"formulas": [{"formula": "query1"}], "response_format": "scalar",
-                 "queries": [{"name": "query1", "data_source": "metrics", "query": "sum:shrimpwatch.pump.failure{state:fail,$farm_id,$pond}.as_count()"}]}
+                 "queries": [{"name": "query1", "data_source": "metrics", "query": "sum:shrimpwatch.pump.failure{state:fail,$farm_id,$pond}.as_count().rollup(sum, 86400)"}]}
               ]
             },
             "layout": {"x": 4, "y": 0, "width": 2, "height": 2}
